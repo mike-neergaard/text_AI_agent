@@ -1,0 +1,5 @@
+{
+  "NER_tokenizer": "Babelscape/wikineural-multilingual-ner", 
+  "NER_model": "Babelscape/wikineural-multilingual-ner",
+  "text_tokenizer": "google/flan-t5-base"
+}
