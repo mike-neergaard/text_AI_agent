@@ -6,6 +6,8 @@ import json
 
 class chunk_utils:
     """A class of text chunk-managing utilities"""
+    previous_chunk = ""
+    previous_chunk_tokens = 0
     current_chunk = "" 
     current_chunk_tokens = 0
     line_number = 0
@@ -36,6 +38,11 @@ class chunk_utils:
         return len(tokens["input_ids"])
 
     def reset_current_chunk(self):
+        # Keep a copy of the current chunk to write out later
+        self.previous_chunk = self.current_chunk
+        self.previous_chunk_tokens = self.current_chunk_tokens
+
+        # Reset
         self.current_chunk = ""
         self.current_chunk_tokens = 0
 
@@ -43,16 +50,39 @@ class chunk_utils:
         self.current_chunk += line
         self.current_chunk_tokens = self.count_tokens(self.current_chunk)
 
-    def new_chunk(self, line: str):
+    def start_new_chunk(self, line: str):
         self.current_chunk = line
         self.current_chunk_tokens = self.count_tokens(self.current_chunk)
 
     def dump_chunk(self, lines): 
-        lines.append({"text":self.current_chunk, 
-            "len": self.current_chunk_tokens, 
-            "line number": self.line_number}) 
-        self.line_number += 1 
+        # If there is a previous chunk, write it out
+        if self.previous_chunk_tokens > 0:
+            lines.append({"text":self.previous_chunk, 
+                "len": self.previous_chunk_tokens, 
+                "line number": self.line_number}) 
+            self.line_number += 1 
+
         self.reset_current_chunk()
+
+    def process_last_chunk(lines):
+        # Perhaps we can just concatenate the previous chunk and the 
+        # current chunk
+        big_chunk = self.previous_chunk + self.current_chunk
+        big_chunk_tokens = self.count_tokens(big_chunk)
+        if big_chunk_len < self.max_tokens:
+            lines.append({"text":big_chunk
+                "len": big_chunk_tokens
+                "line number": self.line_number}) 
+            return
+
+        # The concatenated chunk is too long. We will split it
+        chunks=self.chunk_line(big_chunk, big_chunk_tokens)
+        # Write the chunks out
+        for c in chunks:
+            lines.append({"text":c[0], "len": c[1], 
+                "line number":self.line_number})
+            self.line_number += 1
+        
 
     def chunk_line(self, line: str, num_tokens: int, 
             margin: int = -999) -> list: 
@@ -108,7 +138,7 @@ class chunk_utils:
                 self.line_number += 1
         else:
             # We have a short line.  Let's start filling a chunk
-            self.new_chunk(line)
+            self.start_new_chunk(line)
 
 
 
@@ -130,8 +160,8 @@ def process_text():
             ch.reset_current_chunk()
     
             for line in book:
-                # We have to count tokens this way, because the concatenated string
-                # may tokenize differently than the individual strings
+                # We tokenize the concatenated string, which
+                # may tokenize differently than two individual strings
                 num_tokens = ch.count_tokens(ch.current_chunk + line)
                 if num_tokens > ch.min_tokens: 
                     # With this line, we have exceeded the threshold, so we must
@@ -141,9 +171,7 @@ def process_text():
                     # Even with this line added, we have not exceeded the threshold
                     ch.add_line_to_chunk(line)
     
-            # If there is a leftover chunk, write it out.
-            if ch.current_chunk_tokens: 
-                ch.dump_chunk(lines)
+            ch.process_last_chunk(lines)
         print("Done", flush=True)
 
     with open(os.path.join("data", "lines.json"), "w") as outfile:
