@@ -4,6 +4,29 @@ import spacy
 #from langchain.text_splitter import RecursiveCharacterTextSplitter
 import json
 
+class G:
+    current_chunk = "" 
+    current_chunk_tokens = 0
+    line_number = 0
+    def reset_current_chunk(self):
+        self.current_chunk = ""
+        self.current_chunk_tokens = 0
+
+    def add_line_to_chunk(self,line: str):
+        self.current_chunk += line
+        self.current_chunk_tokens = count_tokens(self.current_chunk)
+
+    def new_chunk(self, line: str):
+        self.current_chunk = line
+        self.current_chunk_tokens = count_tokens(self.current_chunk)
+
+    def dump_chunk(lines): 
+        lines.append({"text":current_chunk, 
+            "len": current_chunk_tokens, 
+            "line number": line_number}) 
+        self.line_number += 1 
+        self.reset_current_chunk()
+
 
 with open("model_config.json", "r") as infile:
     models = json.load(infile)
@@ -58,8 +81,29 @@ def chunk_line(line: str, num_tokens: int,
 
     return chunks
     
+def add_line(line: str, lines: list):
+    """ If we get to this point, we have to write out a line"""
 
-line_number = 0
+    # If there is a current chunk, write it out first.
+    if G.current_chunk_tokens: 
+        G.dump_chunk(lines)
+
+    # If the line is empty, we are done here
+    if line=="": return
+
+    line_tokens = count_tokens(line)
+    if line_tokens > max_tokens:
+        # This line is itself too long, so we will have to chunk it 
+        chunks=chunk_line(line, line_tokens)
+        # Write the chunks out right away
+        for c in chunks:
+            lines.append({"text":c[0], "len": c[1], "line number":line_number})
+            G.line_number += 1
+    else:
+        # We have a short line.  Let's start filling a chunk
+        G.new_chunk(line)
+
+
 lines = []
 for file in file_list:
     colon_split = file.split(":")
@@ -68,17 +112,21 @@ for file in file_list:
     print("Processing", source_name, "...", end="", flush=True)
 
     with open(os.path.join("text", file), "r") as book:
+        # We might have to concatenate chunks, so we maintain a current chunk
+        G.reset_current_chunk()
+
         for line in book:
-            num_tokens = count_tokens(line)
+            # We have to count tokens this way, because the concatenated string
+            # may tokenize differently than the individual strings
+            num_tokens = count_tokens(current_chunk + line)
             if num_tokens > max_tokens:
-                # This line is too long, so we will have to chunk it 
-                chunks=chunk_line(line, num_tokens)
-                for c in chunks:
-                    lines.append({"text":c[0], "len": c[1], "line number":line_number})
-                    line_number += 1
             else:
-                lines.append({"text":line, "len": num_tokens, "line number":line_number})
-                line_number += 1
+                # Even with this line added, we have not exceeded the threshold
+                G.add_line_to_chunk(line)
+
+        # If there is a leftover chunk, write it out.
+        if G.current_chunk_tokens: 
+            G.dump_chunk(lines)
     print("Done", flush=True)
 
 with open(os.path.join("data", "lines.json"), "w") as outfile:
