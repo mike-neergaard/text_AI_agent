@@ -55,7 +55,7 @@ class chunk_utils:
 
     def dump_chunk(self, chunk_list): 
         # If there is a previous chunk, write it out
-        if self.previous_chunk_tokens > 0:
+        if self.previous_chunk != "":
             chunk_list.append({"text":self.previous_chunk, 
                 "len": self.previous_chunk_tokens, 
                 "line number": self.line_number}) 
@@ -80,7 +80,7 @@ class chunk_utils:
 
         # Perhaps the concatenated chunk is short enough
         if big_chunk_tokens < self.max_tokens:
-            if big_chunk_tokens > 0: 
+            if big_chunk != "":
                 # Apparently there is at least some text
                 chunk_list.append({"text":big_chunk,
                     "len": big_chunk_tokens,
