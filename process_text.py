@@ -75,6 +75,7 @@ class chunk_utils:
         big_chunk = self.previous_chunk + self.current_chunk
         big_chunk_tokens = self.count_tokens(big_chunk)
 
+
         # Before we get involved in anything else, remember to clear chunks
         self.absolute_chunk_reset()
 
@@ -116,19 +117,19 @@ class chunk_utils:
         chunk_size = min(int(num_tokens / num_chunks) + margin, self.max_tokens)
     
         chunks = []
-        current_chunk = ""
+        this_chunk = ""
         for i in range(len(sentences)): 
             # Extend the current chunk by one sentence
-            new_chunk = current_chunk + sentences[i]
+            new_chunk = this_chunk + " "+ sentences[i]
             if self.count_tokens(new_chunk) > chunk_size:
                 # Time to start a new chunk
-                chunks.append([current_chunk, self.count_tokens(current_chunk)])
-                current_chunk = sentences[i]
+                chunks.append([this_chunk, self.count_tokens(this_chunk)])
+                this_chunk = sentences[i]
             else:
-                # Update current chunk and continue
-                current_chunk = new_chunk
+                # Update this_chunk and continue
+                this_chunk = new_chunk
     
-        chunks.append([current_chunk, self.count_tokens(current_chunk)])
+        chunks.append([this_chunk, self.count_tokens(this_chunk)])
     
         return chunks
     

@@ -15,14 +15,17 @@ def count_tokens(s: str) -> int:
     tokens = tokenizer(s)
     return len(tokens["input_ids"])
 
-with open(os.path.join("data", "lines.json"), "r") as infile:
+with open(os.path.join("data", "chunks.json"), "r") as infile:
     lines = json.load(infile)
 
 checks_passed = True
+current_line = 0
 # Double check that the tokenization matches what we expect
 for l in lines:
     num_tokens = count_tokens(l["text"])
     if num_tokens > max_tokens: checks_passed = False
+    if current_line != l["line number"]: checks_passed = False
+    current_line += 1
     if num_tokens != l["len"]:
         checks_passed = False
         print("Calculated length not equal to recorded length:\n",\
