@@ -1,5 +1,10 @@
 {
   "NER_tokenizer": "Babelscape/wikineural-multilingual-ner", 
   "NER_model": "Babelscape/wikineural-multilingual-ner",
-  "text_tokenizer": "google/flan-t5-base"
+  "text_tokenizer": "google/flan-t5-base",
+  "llm": "google/flan-t5-base",
+  "embed_model": "hkunlp/instructor-large",
+  "question_instruction": "Represent the question for retrieving supporting documents: ",
+  "embed_instruction": "Represent the document for retrieval: "
 }
+    

@@ -1,33 +1,40 @@
-from InstructorEmbedding import INSTRUCTOR
+#from InstructorEmbedding import INSTRUCTOR
 import faiss
 import os
 import numpy as np
 import json
 import time
+from langchain.vectorstores import FAISS
+from langchain.embeddings import HuggingFaceInstructEmbeddings
+
 
 class TextEmbed:
-    embed_model = INSTRUCTOR('hkunlp/instructor-large')
-    question_instruction = 'Represent the question for retrieving supporting documents: '
-    embed_instruction = 'Represent the document for retrieval: '
+    def __init__(self):
+        with open("model_config.json", "r") as infile:
+            model = json.load(infile)
+        self.embeddings = HuggingFaceInstructEmbeddings(
+            query_instruction=model["embed_instruction"]
+        )
+        self.q_embeddings = HuggingFaceInstructEmbeddings(
+            query_instruction=model["question_instruction"]
+        )
+        self.chunks = []
     
     def question_to_vec(self, question):
-        return self.embed_model.encode([[self.question_instruction, 
-            question]])
+        return self.q_embeddings.embed_query(question)
 
     def text_to_vecs(self, filename, vec_filename=""):
         begin_time = time.time()
-        with open(os.path.join("data", filename), "r")  as infile:
-            chunks = json.load(infile)
+        self.load_chunks()
 
         customized_embeddings = []
         i = 0
-        total_chunks = len(chunks)
-        for c in chunks:
+        total_chunks = len(self.chunks)
+        for c in self.chunks:
             if i % 10 == 0: 
                 print("\rConverted "+str(i),"text chunks of",total_chunks,\
                         "to vectors", flush=True, end="")
-            text_to_embed = [[self.embed_instruction, c["text"]]]
-            embedding = self.embed_model.encode(text_to_embed)[0]
+            embedding = self.embeddings.embed_query(c)
             customized_embeddings.append(embedding)
             i += 1
 
@@ -41,33 +48,41 @@ class TextEmbed:
                 "seconds")
         return array_embeddings
     
-    def vecs_to_store(self, array_embeddings, file=False, filename=""):
-        self.vs = faiss.IndexFlatL2(array_embeddings.shape[1])
-        self.vs.add(array_embeddings)
+    def vecs_to_store(self, array_embeddings, file=False, index_name="index"):
+        self.load_chunks()
+        list_of_vecs = [v.tolist() for v in array_embeddings]
+        embed_vals = [[self.chunks[i], array_embeddings[i].tolist()]\
+                for i in range(len(self.chunks))]
+        #self.vs = faiss.IndexFlatL2(array_embeddings.shape[1])
+        #self.vs.add(array_embeddings)
+
+        # Create the vector store with the query instruction
+        self.faiss = FAISS.from_embeddings(embed_vals, self.q_embeddings)
 
         if file:
-            faiss.write_index(self.vs, os.path.join("data", filename))
+            self.faiss.save_local("data", index_name=index_name)
+            #self.faiss.write_index(self.vs, os.path.join("data", filename))
 
     def load_chunks(self):
+        if len(self.chunks) > 0: return
         with open(os.path.join("data", "chunks.json"), "r") as infile:
-            self.chunks = json.load(infile)
+            chunk_list = json.load(infile)
+        self.chunks = [c["text"] for c in chunk_list]
 
-    def load_vs(self, filename):
-        self.vs = faiss.read_index(os.path.join("data", filename))
+    def load_vs(self, index_name):
+        #self.vs = faiss.read_index(os.path.join("data", filename))
+        self.vs = FAISS.load_local("data", self.q_embeddings, \
+                index_name=index_name)
+
 
 
 def run_pipeline():
     vec_utils = TextEmbed()
     #array_embeddings = vec_utils.text_to_vecs("chunks.json", "raw_vecs.txt")
-    #array_embeddings = np.loadtxt(os.path.join("data", "raw_vecs.txt"))
-    #vec_utils.vecs_to_store(array_embeddings, file=True, filename="faiss_index")
-    vec_utils.load_vs("faiss_index")
-    q_vec = vec_utils.question_to_vec("What happened to Sodom?")
-    print(q_vec.shape)
-    D, I = vec_utils.vs.search(q_vec, 10)
-    vec_utils.load_chunks()
-    for i in I[0]:
-        print(vec_utils.chunks[i])
+    array_embeddings = np.loadtxt(os.path.join("data", "raw_vecs.txt"))
+    vec_utils.vecs_to_store(array_embeddings, file=True, \
+            index_name="faiss_index")
+
 
 
 if __name__ == "__main__":
